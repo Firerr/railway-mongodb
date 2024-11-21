@@ -1,7 +1,7 @@
 import 'dotenv/config'
 
 import express from "express";
-import mongoose from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const app = express();
 
@@ -13,7 +13,7 @@ const {
 
 try {
   const conn = await mongoose.connect(MONGODB_URI);
-  console.log("connected", conn);
+  // console.log("connected", conn);
 
   // this is for errors after a connection has been established
   mongoose.connection.on("error", (err) => {
@@ -31,6 +31,8 @@ app.use(express.static('public'));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json()); // parse application/json
 
+// connected above
+// create a schema (shape of your data)
 const carSchema = new Schema({
   name: {
     type: String,
@@ -46,19 +48,78 @@ const carSchema = new Schema({
     default: "https://static.thenounproject.com/png/449586-200.png",
   },
 });
-
+// create a model (obj that has all the methods on it. We use it to query and mutate)
 const Car = mongoose.model('Car', carSchema);
-Car.
 
-app.get('/api/v1/cars', function(req, res){
-  return res.json(cars);
+// put model method calls inside route handler
+
+app.get('/api/v1/cars/:id?', async (req, res) => {
+  let query = {};
+  if (req.params.id) {
+    query._id = req.params.id;
+  }
+
+  // Server-side validation (express-validator)
+
+  try {
+    const cars = await Car.find(query);
+    return res.status(200).json(cars);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err);
+  }
+    // QUERY to get cars
 });
 
-app.post("/api/v1/cars", function(req, res) {
-  console.log(req.body);
-  cars.push(req.body);
-  return res.sendStatus(201);
+app.post("/api/v1/cars", async (req, res) => {
+    // Check validation
+    // const errors = validationResult(req);
+    // if (!errors.isEmpty()) {
+    //   return res.status(400).json({ errors: errors.array() });
+    // }
+  
+    const carData = req.body;
+    console.info(carData);
+    if(carData.avatar_url === '') {
+      delete carData.avatar_url;
+    }
+    console.info(carData);
+    try {
+      const newCar = new Car(carData);
+      const result = await newCar.save();
+      res.status(201).json(result);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send(err);
+    }
 });
+
+app.put('/api/v1/cars/:id', async (req, res) => {
+    // Check validation
+    // const errors = validationResult(req);
+    // if (!errors.isEmpty()) {
+    //   return res.status(400).json({ errors: errors.array() });
+    // }
+    try {
+      const result = await Car.updateOne({ _id: req.params.id }, req.body);
+      if (result.n === 0) return res.sendStatus(404);
+      res.sendStatus(200);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send(err);
+    }
+});
+
+app.delete('/api/v1/cars/:id', async (req, res) => {
+  try {
+    const result = await Car.deleteOne({ _id: req.params.id });
+    if (result.n === 0) return res.sendStatus(404);
+    res.sendStatus(204);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send(err);
+  }
+})
 
 
 app.listen(PORT, () => {
